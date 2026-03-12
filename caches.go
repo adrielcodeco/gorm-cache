@@ -14,8 +14,9 @@ type Caches struct {
 }
 
 type Config struct {
-	Easer  bool
-	Cacher Cacher
+	Easer    bool
+	Cacher   Cacher
+	TagsFunc func(db *gorm.DB) []string
 }
 
 func (c *Caches) Name() string {
@@ -89,7 +90,13 @@ func (c *Caches) query(db *gorm.DB) {
 func (c *Caches) getMutatorCb(typ queryType) func(db *gorm.DB) {
 	return func(db *gorm.DB) {
 		if c.Conf.Cacher != nil {
-			if err := c.Conf.Cacher.Invalidate(db.Statement.Context); err != nil {
+			event := &InvalidationEvent{
+				Tables:       extractTables(db),
+				EntityIDs:    extractEntityIDs(db),
+				MutationType: queryTypeToMutationType(typ),
+				Tags:         invalidateTagsFromContext(db.Statement.Context),
+			}
+			if err := c.Conf.Cacher.Invalidate(db.Statement.Context, event); err != nil {
 				_ = db.AddError(err)
 			}
 		}
@@ -155,7 +162,11 @@ func (c *Caches) checkCache(db *gorm.DB, identifier string) bool {
 
 func (c *Caches) storeInCache(db *gorm.DB, identifier string) {
 	if c.Conf.Cacher != nil {
-		err := c.Conf.Cacher.Store(db.Statement.Context, identifier, &Query[any]{
+		ctx := db.Statement.Context
+		if c.Conf.TagsFunc != nil {
+			ctx = WithTags(ctx, c.Conf.TagsFunc(db)...)
+		}
+		err := c.Conf.Cacher.Store(ctx, identifier, &Query[any]{
 			Dest:         db.Statement.Dest,
 			RowsAffected: db.Statement.RowsAffected,
 		})

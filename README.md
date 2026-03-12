@@ -6,12 +6,14 @@ Gorm Caches plugin using database request reductions (easer), and response cachi
 
 - Database request reduction. If three identical requests are running at the same time, only the first one is going to be executed, and its response will be returned for all.
 - Database response caching. By implementing the Cacher interface, you can easily setup a caching mechanism for your database queries.
+- Granular cache invalidation. Mutations automatically provide table names, entity IDs, and mutation type via `InvalidationEvent`.
+- Tag-based invalidation. Optionally tag cache entries with `TagsFunc` and selectively invalidate them with `WithInvalidateTags`.
 - Supports all databases that are supported by gorm itself.
 
 ## Install
 
 ```bash
-go get -u github.com/go-gorm/caches/v4
+go get -u github.com/go-gorm/caches/v5
 ```
 
 ## Usage
@@ -25,7 +27,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/go-gorm/caches/v4"
+	"github.com/go-gorm/caches/v5"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -53,7 +55,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-gorm/caches/v4"
+	"github.com/go-gorm/caches/v5"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -137,7 +139,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-gorm/caches/v4"
+	"github.com/go-gorm/caches/v5"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -182,11 +184,15 @@ func (c *redisCacher) Store(ctx context.Context, key string, val *caches.Query[a
 		return err
 	}
 
-	c.rdb.Set(ctx, key, res, 300*time.Second) // Set proper cache time
+	// You can use caches.TagsFromContext(ctx) here to store tags alongside the cache entry
+	c.rdb.Set(ctx, key, res, 300*time.Second)
 	return nil
 }
 
-func (c *redisCacher) Invalidate(ctx context.Context) error {
+func (c *redisCacher) Invalidate(ctx context.Context, event *caches.InvalidationEvent) error {
+	// Use event.Tables, event.EntityIDs, event.MutationType for granular invalidation
+	// Use event.Tags for tag-based invalidation (if WithInvalidateTags was used)
+	// Fallback: invalidate all if no tags are present
 	var (
 		cursor uint64
 		keys   []string
@@ -277,7 +283,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/go-gorm/caches/v4"
+	"github.com/go-gorm/caches/v5"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -329,7 +335,7 @@ func (c *memoryCacher) Store(ctx context.Context, key string, val *caches.Query[
 	return nil
 }
 
-func (c *memoryCacher) Invalidate(ctx context.Context) error {
+func (c *memoryCacher) Invalidate(ctx context.Context, event *caches.InvalidationEvent) error {
 	c.store = &sync.Map{}
 	return nil
 }
@@ -380,6 +386,56 @@ func main() {
 	fmt.Println(fmt.Sprintf("%+v", q2User))
 }
 ```
+
+## Tags (Query Keys)
+
+Tags allow you to selectively invalidate cache entries, similar to TanStack React Query's query keys. Instead of invalidating all cache entries on every mutation, you can tag cached queries and only invalidate the relevant ones.
+
+### Setup TagsFunc
+
+Use `Config.TagsFunc` to generate tags for each cached query. Tags are passed to your `Cacher.Store` implementation via context (retrievable with `caches.WithTags`):
+
+```go
+cachesPlugin := &caches.Caches{Conf: &caches.Config{
+	Cacher: &yourCacher{},
+	TagsFunc: func(db *gorm.DB) []string {
+		return []string{db.Statement.Table}
+	},
+}}
+```
+
+### Invalidate by Tags
+
+When performing mutations, use `caches.WithInvalidateTags` to specify which tags to invalidate:
+
+```go
+ctx := caches.WithInvalidateTags(context.Background(), "users")
+db.WithContext(ctx).Create(&User{Name: "John"})
+```
+
+In your `Cacher.Invalidate` implementation, check `event.Tags` to determine which entries to invalidate:
+
+```go
+func (c *yourCacher) Invalidate(ctx context.Context, event *caches.InvalidationEvent) error {
+	if len(event.Tags) > 0 {
+		// Selectively invalidate entries matching these tags
+		return c.invalidateByTags(ctx, event.Tags)
+	}
+	// Fallback: invalidate all (no tags specified)
+	return c.invalidateAll(ctx)
+}
+```
+
+### InvalidationEvent
+
+Every mutation callback receives an `InvalidationEvent` with:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Tables` | `[]string` | Tables involved in the mutation (main table + relationships) |
+| `EntityIDs` | `[]interface{}` | Primary key values of affected entities |
+| `MutationType` | `MutationType` | `MutationCreate`, `MutationUpdate`, or `MutationDelete` |
+| `Tags` | `[]string` | Tags from `WithInvalidateTags` context (empty if not set) |
 
 ## License
 

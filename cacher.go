@@ -11,7 +11,8 @@ type Cacher interface {
 	// Store impl should store a cached representation of the val param
 	// look at Query.Unmarshal
 	Store(ctx context.Context, key string, val *Query[any]) error
-	// Invalidate impl should invalidate all cached values
-	// It will be called when INSERT / UPDATE / DELETE queries are sent to the DB
-	Invalidate(ctx context.Context) error
+	// Invalidate impl should invalidate cached values based on the given event.
+	// The event contains metadata about the mutation (tables, entity IDs, mutation type, and tags).
+	// It will be called when INSERT / UPDATE / DELETE queries are sent to the DB.
+	Invalidate(ctx context.Context, event *InvalidationEvent) error
 }

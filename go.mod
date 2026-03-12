@@ -1,4 +1,4 @@
-module github.com/go-gorm/caches/v4
+module github.com/go-gorm/caches/v5
 
 go 1.18
 

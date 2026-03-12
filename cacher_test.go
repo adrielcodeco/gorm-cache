@@ -32,7 +32,7 @@ func (c *cacherMock) Store(_ context.Context, key string, val *Query[any]) error
 	return nil
 }
 
-func (c *cacherMock) Invalidate(context.Context) error {
+func (c *cacherMock) Invalidate(context.Context, *InvalidationEvent) error {
 	return nil
 }
 
@@ -46,7 +46,7 @@ func (c *cacherStoreErrorMock) Store(context.Context, string, *Query[any]) error
 	return errors.New("store-error")
 }
 
-func (c *cacherStoreErrorMock) Invalidate(context.Context) error {
+func (c *cacherStoreErrorMock) Invalidate(context.Context, *InvalidationEvent) error {
 	return nil
 }
 
@@ -60,6 +60,24 @@ func (c *cacherGetErrorMock) Store(context.Context, string, *Query[any]) error {
 	return nil
 }
 
-func (c *cacherGetErrorMock) Invalidate(context.Context) error {
+func (c *cacherGetErrorMock) Invalidate(context.Context, *InvalidationEvent) error {
+	return nil
+}
+
+type cacherEventCaptureMock struct {
+	cacherMock
+	lastEvent *InvalidationEvent
+	lastCtx   context.Context
+	storeTags []string
+}
+
+func (c *cacherEventCaptureMock) Store(ctx context.Context, key string, val *Query[any]) error {
+	c.storeTags = tagsFromContext(ctx)
+	return c.cacherMock.Store(ctx, key, val)
+}
+
+func (c *cacherEventCaptureMock) Invalidate(ctx context.Context, event *InvalidationEvent) error {
+	c.lastCtx = ctx
+	c.lastEvent = event
 	return nil
 }

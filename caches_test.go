@@ -516,3 +516,104 @@ func TestCaches_getMutatorCb(t *testing.T) {
 		})
 	}
 }
+
+func TestCaches_getMutatorCb_InvalidationEvent(t *testing.T) {
+	captureMock := &cacherEventCaptureMock{}
+	db, err := gorm.Open(tests.DummyDialector{}, &gorm.Config{})
+	if err != nil {
+		t.Fatalf("gorm initialization resulted into an unexpected error, %s", err.Error())
+	}
+	db.Statement.Table = "users"
+
+	caches := &Caches{
+		Conf: &Config{
+			Cacher: captureMock,
+		},
+		callbacks: map[queryType]func(db *gorm.DB){
+			uponCreate: nil,
+		},
+	}
+
+	mutator := caches.getMutatorCb(uponCreate)
+	mutator(db)
+
+	if captureMock.lastEvent == nil {
+		t.Fatal("expected InvalidationEvent to be captured, got nil")
+	}
+
+	if captureMock.lastEvent.MutationType != MutationCreate {
+		t.Errorf("expected MutationType MutationCreate, got %v", captureMock.lastEvent.MutationType)
+	}
+
+	if len(captureMock.lastEvent.Tables) != 1 || captureMock.lastEvent.Tables[0] != "users" {
+		t.Errorf("expected Tables [users], got %v", captureMock.lastEvent.Tables)
+	}
+}
+
+func TestCaches_getMutatorCb_WithInvalidateTags(t *testing.T) {
+	captureMock := &cacherEventCaptureMock{}
+	db, err := gorm.Open(tests.DummyDialector{}, &gorm.Config{})
+	if err != nil {
+		t.Fatalf("gorm initialization resulted into an unexpected error, %s", err.Error())
+	}
+
+	ctx := WithInvalidateTags(db.Statement.Context, "user-list", "user-detail")
+	db.Statement.Context = ctx
+
+	caches := &Caches{
+		Conf: &Config{
+			Cacher: captureMock,
+		},
+		callbacks: map[queryType]func(db *gorm.DB){
+			uponUpdate: nil,
+		},
+	}
+
+	mutator := caches.getMutatorCb(uponUpdate)
+	mutator(db)
+
+	if captureMock.lastEvent == nil {
+		t.Fatal("expected InvalidationEvent to be captured, got nil")
+	}
+
+	if len(captureMock.lastEvent.Tags) != 2 {
+		t.Fatalf("expected 2 tags, got %d", len(captureMock.lastEvent.Tags))
+	}
+
+	if captureMock.lastEvent.Tags[0] != "user-list" || captureMock.lastEvent.Tags[1] != "user-detail" {
+		t.Errorf("expected tags [user-list user-detail], got %v", captureMock.lastEvent.Tags)
+	}
+}
+
+func TestCaches_storeInCache_WithTagsFunc(t *testing.T) {
+	captureMock := &cacherEventCaptureMock{}
+	db, _ := gorm.Open(tests.DummyDialector{}, &gorm.Config{})
+	db.Statement.Dest = &mockDest{}
+	db.Statement.Table = "users"
+
+	caches := &Caches{
+		Conf: &Config{
+			Cacher: captureMock,
+			TagsFunc: func(db *gorm.DB) []string {
+				return []string{"users-query", "users:" + db.Statement.Table}
+			},
+		},
+		callbacks: map[queryType]func(db *gorm.DB){
+			uponQuery: func(db *gorm.DB) {},
+		},
+	}
+
+	caches.storeInCache(db, "test-key")
+
+	if db.Error != nil {
+		t.Fatalf("unexpected error: %v", db.Error)
+	}
+
+	if len(captureMock.storeTags) != 2 {
+		t.Fatalf("expected 2 tags in store context, got %d", len(captureMock.storeTags))
+	}
+
+	if captureMock.storeTags[0] != "users-query" {
+		t.Errorf("expected first tag 'users-query', got %q", captureMock.storeTags[0])
+	}
+}
