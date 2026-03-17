@@ -12,15 +12,17 @@ import (
 
 const IdentifierPrefix = "gorm-caches::"
 
-func buildIdentifier(db *gorm.DB) string {
+func buildIdentifier(db *gorm.DB, prefix string) string {
 	// Build query identifier,
 	//	for that reason we need to compile all arguments into a string
 	//	and concat them with the SQL query itself
 	callbacks.BuildQuerySQL(db)
 	query := db.Statement.SQL.String()
 	queryArgs := valueToString(db.Statement.Vars)
-	identifier := fmt.Sprintf("%s%s-%s", IdentifierPrefix, query, queryArgs)
-	return identifier
+	if prefix != "" {
+		return fmt.Sprintf("%s%s::%s-%s", IdentifierPrefix, prefix, query, queryArgs)
+	}
+	return fmt.Sprintf("%s%s-%s", IdentifierPrefix, query, queryArgs)
 }
 
 func valueToString(value interface{}) string {

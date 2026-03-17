@@ -13,7 +13,7 @@ Gorm Caches plugin using database request reductions (easer), and response cachi
 ## Install
 
 ```bash
-go get -u github.com/go-gorm/caches/v5
+go get -u github.com/adrielcodeco/gorm-cache/v5
 ```
 
 ## Usage
@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/go-gorm/caches/v5"
+	"github.com/adrielcodeco/gorm-cache/v5"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -55,7 +55,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-gorm/caches/v5"
+	"github.com/adrielcodeco/gorm-cache/v5"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -139,7 +139,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-gorm/caches/v5"
+	"github.com/adrielcodeco/gorm-cache/v5"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -283,7 +283,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/go-gorm/caches/v5"
+	"github.com/adrielcodeco/gorm-cache/v5"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

@@ -12,8 +12,21 @@ func Test_buildIdentifier(t *testing.T) {
 	db.Statement.SQL.WriteString("TEST-SQL")
 	db.Statement.Vars = append(db.Statement.Vars, "test", 123, 12.3, true, false, []string{"test", "me"})
 
-	actual := buildIdentifier(db)
+	actual := buildIdentifier(db, "")
 	expected := "gorm-caches::TEST-SQL-[test 123 12.3 true false [test me]]"
+	if actual != expected {
+		t.Errorf("buildIdentifier expected to return `%s` but got `%s`", expected, actual)
+	}
+}
+
+func Test_buildIdentifierWithPrefix(t *testing.T) {
+	db := &gorm.DB{}
+	db.Statement = &gorm.Statement{}
+	db.Statement.SQL.WriteString("TEST-SQL")
+	db.Statement.Vars = append(db.Statement.Vars, "test")
+
+	actual := buildIdentifier(db, "service-a")
+	expected := "gorm-caches::service-a::TEST-SQL-[test]"
 	if actual != expected {
 		t.Errorf("buildIdentifier expected to return `%s` but got `%s`", expected, actual)
 	}

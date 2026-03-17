@@ -17,6 +17,7 @@ type Config struct {
 	Easer    bool
 	Cacher   Cacher
 	TagsFunc func(db *gorm.DB) []string
+	Prefix   string
 }
 
 func (c *Caches) Name() string {
@@ -69,7 +70,7 @@ func (c *Caches) query(db *gorm.DB) {
 		return
 	}
 
-	identifier := buildIdentifier(db)
+	identifier := buildIdentifier(db, c.Conf.Prefix)
 
 	if c.checkCache(db, identifier) {
 		return
